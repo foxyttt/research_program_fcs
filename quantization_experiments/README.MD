@@ -1,21 +1,21 @@
 Experiments on qauntization.
 
 
-Model                         Perplexity    PPL delta  Sizefloat32 
-baseline                      4.3070         —          41MB 
-PTQ int8 (w-out fine-tunning) 4.3187        +0.27%      0.5 MB
-QAT int8 (1000 steps)         4.3161        +0.21%      10 MB
+Model        |                 Perplexity  |  PPL delta | Sizefloat32 
+baseline       |               4.3070   |      —       |   41MB 
+PTQ int8 (w-out fine-tunning)| 4.3187   |     +0.27%   |   0.5 MB
+QAT int8 (1000 steps)     |    4.3161    |    +0.21%    |  10 MB
 
 Experiment A: QAT steps vs quality
 
-Method                             Val loss   Perplexity    Size MB    PPL delta
+Method                |             Val loss  |  Perplexity |   Size MB  |  PPL delta
 --------------------------------------------------------------------------------
-float32_baseline                     1.4597       4.3047       41.0     baseline
-qat_0_steps                          1.4614       4.3122       41.0      +0.175%
-qat_500_steps                        1.4620       4.3144       41.0      +0.226%
-qat_1000_steps                       1.4558       4.2877       41.0      -0.393%
-qat_3000_steps                       1.4633       4.3203       41.0      +0.364%
-qat_5000_steps                       1.4697       4.3479       41.0      +1.004%
+float32_baseline       |              1.4597    |     4.3047   |    41.0  |   baseline
+qat_0_steps            |              1.4614    |     4.3122   |    41.0  |    +0.175%
+qat_500_steps          |              1.4620    |     4.3144   |    41.0   |   +0.226%
+qat_1000_steps         |              1.4558    |     4.2877   |    41.0   |   -0.393%
+qat_3000_steps         |              1.4633    |     4.3203   |    41.0   |   +0.364%
+qat_5000_steps         |              1.4697    |     4.3479   |   41.0    |  +1.004%
 
 
 
