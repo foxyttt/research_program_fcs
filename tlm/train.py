@@ -41,7 +41,7 @@ min_lr = 6e-5
 # system
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16'
-compile = False
+compile = True
 
 # various inits
 torch.manual_seed(1337)

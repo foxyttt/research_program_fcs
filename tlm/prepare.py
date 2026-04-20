@@ -1,66 +1,48 @@
 import os
-import sys
-import pickle
-import argparse
+from tqdm import tqdm
 import numpy as np
-from tokenizer import Tokenizer
+import tiktoken
+from datasets import load_dataset
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input-train", type=str, required=True)
-    parser.add_argument("--input-val", type=str, required=True)
-    parser.add_argument("--output-dir", type=str, default="data/openwebtext")
-    parser.add_argument("--vocab-size", type=int, default=50304)
-    parser.add_argument("--model-prefix", type=str, default="tokenizer")
-    args = parser.parse_args()
+num_proc = 8
 
-    if not os.path.isfile(args.input_train):
-        print(f"Error: training file '{args.input_train}' not found.")
-        sys.exit(1)
-    if not os.path.isfile(args.input_val):
-        print(f"Error: validation file '{args.input_val}' not found.")
-        sys.exit(1)
+num_proc_load_dataset = num_proc
 
-    os.makedirs(args.output_dir, exist_ok=True)
+enc = tiktoken.get_encoding("gpt2")
 
-    with open(args.input_train, 'r', encoding='utf-8') as f:
-        train_text = f.read()
+if __name__ == '__main__':
+    dataset = load_dataset("openwebtext", num_proc=num_proc_load_dataset)
 
-    tokenizer = Tokenizer()
-    tokenizer.train(train_text, args.vocab_size)
+    split_dataset = dataset["train"].train_test_split(test_size=0.0005, seed=2357, shuffle=True)
+    split_dataset['val'] = split_dataset.pop('test')
 
-    model_path = os.path.join(args.output_dir, args.model_prefix)
-    tokenizer.save(model_path)
+    def process(example):
+        ids = enc.encode_ordinary(example['text'])
+        ids.append(enc.eot_token)
+        out = {'ids': ids, 'len': len(ids)}
+        return out
 
-    train_ids = tokenizer.encode(train_text)
-    del train_text
+    # tokenize the dataset
+    tokenized = split_dataset.map(
+        process,
+        remove_columns=['text'],
+        desc="tokenizing the splits",
+        num_proc=num_proc,
+    )
 
-    with open(args.input_val, 'r', encoding='utf-8') as f:
-        val_text = f.read()
-    val_ids = tokenizer.encode(val_text)
-    del val_text
-
-    max_id = max(max(train_ids), max(val_ids))
-    if max_id < 2**16:
+    for split, dset in tokenized.items():
+        arr_len = np.sum(dset['len'], dtype=np.uint64)
+        filename = os.path.join(os.path.dirname(__file__), f'{split}.bin')
         dtype = np.uint16
-    else:
-        dtype = np.uint32
+        arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len,))
+        total_batches = 1024
 
-    train_bin_path = os.path.join(args.output_dir, 'train.bin')
-    train_arr = np.array(train_ids, dtype=dtype)
-    train_arr.tofile(train_bin_path)
-
-    val_bin_path = os.path.join(args.output_dir, 'val.bin')
-    val_arr = np.array(val_ids, dtype=dtype)
-    val_arr.tofile(val_bin_path)
-
-    meta = {
-        'vocab_size': args.vocab_size,
-        'itos': None,
-    }
-    meta_path = os.path.join(args.output_dir, 'meta.pkl')
-    with open(meta_path, 'wb') as f:
-        pickle.dump(meta, f)
-
-if __name__ == "__main__":
-    main()
+        idx = 0
+        for batch_idx in tqdm(range(total_batches), desc=f'writing {filename}'):
+            # Batch together samples for faster write
+            batch = dset.shard(num_shards=total_batches, index=batch_idx, contiguous=True).with_format('numpy')
+            arr_batch = np.concatenate(batch['ids'])
+            # Write into mmap
+            arr[idx : idx + len(arr_batch)] = arr_batch
+            idx += len(arr_batch)
+        arr.flush()
